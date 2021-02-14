@@ -46,25 +46,74 @@ def clientthread(client):
             print(e) 
             continue
 
-def parseMessage(message, client): 
-    parts = message.split(" ", 3)
+def parseMessage(message, client):
+    # Check high level structure of the message 
+    parts = message.split(" ", 2)
     if len(parts) != 3:
-        return
-    op, parameter, message = parts
-    if op == "REGISTER":
-        if parameter == "UNIQUE":
-            client.userName = message
-    else:
-        temp = str(client.userName) + ": " + message
-        broadcast(temp.encode('utf-8'))
+        if len(parts) == 2 and "ROOM" in message:
+            pass
+        else:
+            print("Bad fromat based on split. Size: " + str(len(parts)))
+            return
 
-def broadcast(message):  
-    for client in clients:  
+    # Adding a new user.
+    if parts[0] == "REGISTER":
+        if parts[1] == "UNIQUE":
+            if all([c.userName != parts[2] for c in clients]):
+                client.userName = parts[2]
+            else:
+                print("Duplicate name: " + parts[2])#handel error message
+    
+    # Getting all the current chat rooms.
+    elif parts[0] == "LIST":
+        if parts[1] == "ROOMS":
+            response = "ROOMS ALL " + " ".join(rooms)
+            sendMessage(response.encode('utf-8'), client)
+
+    # Join a new chat room
+    elif parts[0] == "JOIN_ROOM":
+        if parts[1] in rooms:
+            client.addRoom(parts[1])
+        else:
+            print("Unknown chat room name")# Error
+
+    # Create a new chat room.
+    elif parts[0] == "CREATE_ROOM":
+        if not parts[1] in rooms:
+            rooms.append(parts[1])
+        else:
+            print("Room already created")# Error
+
+    # Exit a room
+    elif parts[0] == "LEAVE_ROOM":
+        if parts[1] in rooms:
+            client.removeRoom(parts[1])
+        else:
+            print("Room already created")# Error
+
+    # Send a message to others
+    elif parts[0] == "SEND_MSG":
+        if parts[1] in rooms and parts[1] in client.rooms:
+            temp = "REC_MSG " + parts[1] + " " + parts[2]
+            broadcast(temp.encode('utf-8'), parts[1])
+        else:
+            print("Unknown chat room name or not a member of this room")# Error
+
+    # Hang on there bud. This is not supported
+    else:
+        print("Unknown operation")# handel error
+
+def sendMessage(message, client):
         try:  
             client.conn.send(message)  
         except socket.error:  
             client.conn.close()   
-            disconnect(client)   
+            disconnect(client)  
+ 
+def broadcast(message, room):  
+    for client in clients: 
+        if room in client.rooms: 
+            sendMessage(message, client)
 
 def disconnect(c):  
     if c in clients:  
