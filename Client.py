@@ -1,5 +1,4 @@
 import socket  
-import select  
 import sys  
 import _thread
 import time
@@ -13,7 +12,7 @@ print(server)
 
 def userInterface():
     while True:
-        message = sys.stdin.readline()  
+        message = sys.stdin.readline()[:-1]  
         server.send(message.encode('utf-8')) 
 
 _thread.start_new_thread(userInterface,()) 
