@@ -2,6 +2,10 @@
 import socket 
 import sys  
 import _thread
+from datetime import datetime
+
+clients = [] 
+rooms = ['General']
 class Client:
     def __init__(self, conn, addr):
         self.conn = conn
@@ -10,7 +14,8 @@ class Client:
         self.userName = None
     
     def addRoom(self, room):
-        self.rooms.append(room)
+        if not room in self.rooms:
+            self.rooms.append(room)
     
     def removeRoom(self, room):
         self.rooms.remove(room)
@@ -28,9 +33,6 @@ ip = 'localhost'
 port = 4137
 server.bind((ip, port))  
 server.listen(10)
-
-clients = [] 
-rooms = ['General']
   
 # Spawning a serperate thread per conenction to relay the message
 def clientthread(client):  
@@ -79,7 +81,7 @@ def parseMessage(message, client):
 
     # Create a new chat room.
     elif parts[0] == "CREATE_ROOM":
-        if not parts[1] in rooms:
+        if not parts[1] in rooms and not ',' in parts[1]:
             rooms.append(parts[1])
         else:
             print("Room already created")# Error
@@ -94,8 +96,16 @@ def parseMessage(message, client):
     # Send a message to others
     elif parts[0] == "SEND_MSG":
         if parts[1] in rooms and parts[1] in client.rooms:
-            temp = "REC_MSG " + parts[1] + " " + parts[2]
+            message = client.userName + " " + datetime.now().strftime('%H:%M:%S') + " " + parts[2]
+            temp = "REC_MSG " + parts[1] + " " + message
             broadcast(temp.encode('utf-8'), parts[1])
+        else:
+            print("Unknown chat room name or not a member of this room")# Error
+    
+    # Disconnect
+    elif parts[0] == "DISCONNECT":
+        if parts[1] == "ALL":
+            disconnect(client)
         else:
             print("Unknown chat room name or not a member of this room")# Error
 
