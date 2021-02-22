@@ -8,6 +8,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
 import argparse
 
+# Allow for IP and port customization 
 parser = argparse.ArgumentParser(description='IRC like server')
 parser.add_argument('--port', type=int, nargs='?', default=4137,
                     help='port for the server to listen to.')
@@ -17,17 +18,19 @@ cmdArgs = parser.parse_args()
 print(cmdArgs.port)
 print(cmdArgs.address)
 cmdArgs = parser.parse_args()
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
 server.connect((cmdArgs.address, cmdArgs.port))  
 
 chatHistory={}
 
+# Represents a chat history in a specific room
 class ChatRoom:
     def __init__(self, name):
-        self.name = name
-        self.messages = []
-        self.read = 0
+        self.name = name   # Name of the room
+        self.messages = [] # All messages recieved
+        self.read = 0      # How many of the messages have been read so far
     
     def addMessage(self, msg):
         self.messages.append(msg)
@@ -38,17 +41,18 @@ class ChatRoom:
         return unread
 
 def userInterface():
-    completer = WordCompleter(['register', 'refresh_rooms', 'show_rooms', 'add', 'join', 'leave', 'disconnect', 'read', 'send'],
-                             ignore_case=True)
+    completer = WordCompleter(['register', 'refresh_rooms',
+         'show_rooms', 'add', 'join', 'leave', 'disconnect',
+          'read', 'send'], ignore_case=True)
+    
     while 1:
-        userInput = prompt('IRC>',
-                        history=FileHistory('history.txt'),
-                        auto_suggest=AutoSuggestFromHistory(),
-                        completer=completer
-                       )
+        userInput = prompt('IRC>', history=FileHistory('history.txt'),
+            auto_suggest=AutoSuggestFromHistory(), completer=completer)
 
         args = userInput.split(" ", 2)
-        toSend = []
+        toSend = [] # Strings to be send to the server.
+
+        # Server specific requests
         if args[0] == "register":
             toSend.append("REGISTER UNIQUE " + args[1])
         elif args[0] == "refresh_rooms":
@@ -66,6 +70,7 @@ def userInterface():
             #TODO
             pass
         
+        # Opreations that do not require the server
         elif args[0] == "show_rooms":
             for room in chatHistory.keys():
                 print(room)
@@ -84,9 +89,10 @@ def userInterface():
         for msg in toSend:
             server.send(msg.encode('utf-8'))
 
-
+# Thrad for handling REPL
 _thread.start_new_thread(userInterface,()) 
 
+# Main thread listens for feedback from the server.
 while True:   
     data = server.recv(2048)
     if data:   

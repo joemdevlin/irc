@@ -5,7 +5,7 @@ import _thread
 from datetime import datetime
 import argparse
 
-
+# Allow for IP and port customization 
 parser = argparse.ArgumentParser(description='IRC like server')
 parser.add_argument('--port', type=int, nargs='?', default=4137,
                     help='port for the server to listen to.')
@@ -43,6 +43,9 @@ class Client:
             return self.__dict__ == other.__dict__
         else:
             return False
+
+    def __str__(self):
+        return str(self.userName) + "\n\t" + ",".join(self.rooms)
   
 # Spawning a serperate thread per conenction to relay the message
 def clientthread(client):  
@@ -60,6 +63,8 @@ def clientthread(client):
 
 def parseMessage(message, client):
     # Check high level structure of the message 
+    print(client)
+    print(message)
     parts = message.split(" ", 2)
     if len(parts) != 3:
         if len(parts) == 2 and "ROOM" in message:
