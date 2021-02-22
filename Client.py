@@ -13,7 +13,9 @@ parser.add_argument('--port', type=int, nargs='?', default=4137,
                     help='port for the server to listen to.')
 parser.add_argument('--address', nargs='?',  default='localhost',
                     help='the address for the server to run on.')
-
+cmdArgs = parser.parse_args()
+print(cmdArgs.port)
+print(cmdArgs.address)
 cmdArgs = parser.parse_args()
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
