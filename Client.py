@@ -6,6 +6,20 @@ from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
+import argparse
+
+parser = argparse.ArgumentParser(description='IRC like server')
+parser.add_argument('--port', type=int, nargs='?', default=4137,
+                    help='port for the server to listen to.')
+parser.add_argument('--address', nargs='?',  default='localhost',
+                    help='the address for the server to run on.')
+
+cmdArgs = parser.parse_args()
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+server.connect((cmdArgs.address, cmdArgs.port))  
+
+chatHistory={}
 
 class ChatRoom:
     def __init__(self, name):
@@ -18,16 +32,9 @@ class ChatRoom:
     
     def readUnreadMessages(self):
         unread =  self.messages[self.read:]
-        read = len(self.messages)
+        self.read = len(self.messages)
         return unread
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-ip = 'localhost'  
-port = 4137 
-server.connect((ip, port))  
-
-chatHistory={}
 def userInterface():
     completer = WordCompleter(['register', 'refresh_rooms', 'show_rooms', 'add', 'join', 'leave', 'disconnect', 'read', 'send'],
                              ignore_case=True)
@@ -90,7 +97,6 @@ while True:
         
         elif msg[0] == "ROOMS":
             allRooms = msg[2].split(" ")
-
             for room in allRooms:
                 if not room in chatHistory.keys():
                     chatHistory[room] = ChatRoom(room)

@@ -3,9 +3,27 @@ import socket
 import sys  
 import _thread
 from datetime import datetime
+import argparse
+
+
+parser = argparse.ArgumentParser(description='IRC like server')
+parser.add_argument('--port', type=int, nargs='?', default=4137,
+                    help='port for the server to listen to.')
+parser.add_argument('--address', nargs='?',  default='localhost',
+                    help='the address for the server to run on.')
+
+cmdArgs = parser.parse_args()
+print(cmdArgs.port)
+print(cmdArgs.address)
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+server.bind((cmdArgs.address, cmdArgs.port))  
+server.listen(10)
 
 clients = [] 
 rooms = ['General']
+
 class Client:
     def __init__(self, conn, addr):
         self.conn = conn
@@ -25,14 +43,6 @@ class Client:
             return self.__dict__ == other.__dict__
         else:
             return False
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-    
-ip = 'localhost'  
-port = 4137
-server.bind((ip, port))  
-server.listen(10)
   
 # Spawning a serperate thread per conenction to relay the message
 def clientthread(client):  
@@ -95,7 +105,9 @@ def parseMessage(message, client):
 
     # Send a message to others
     elif parts[0] == "SEND_MSG":
-        if parts[1] in rooms and parts[1] in client.rooms:
+        if client.userName == None:
+            print("User not registered.")
+        elif parts[1] in rooms and parts[1] in client.rooms:
             message = client.userName + " " + datetime.now().strftime('%H:%M:%S') + " " + parts[2]
             temp = "REC_MSG " + parts[1] + " " + message
             broadcast(temp.encode('utf-8'), parts[1])
