@@ -8,6 +8,25 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
 import argparse
 
+# Represents a chat history in a specific room
+class ChatRoom:
+    def __init__(self, name):
+        self.name = name   # Name of the room
+        self.messages = [] # All messages recieved
+        self.read = 0      # How many of the messages have been read so far
+        self.memmbers = []
+    
+    def addMessage(self, msg):
+        self.messages.append(msg)
+    
+    def setMembers(self, mem):
+        self.memmbers = mem
+
+    def readUnreadMessages(self):
+        unread =  self.messages[self.read:]
+        self.read = len(self.messages)
+        return unread
+
 # Allow for IP and port customization 
 parser = argparse.ArgumentParser(description='IRC like server')
 parser.add_argument('--port', type=int, nargs='?', default=4137,
@@ -24,26 +43,12 @@ server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.connect((cmdArgs.address, cmdArgs.port))  
 
 chatHistory={}
-
-# Represents a chat history in a specific room
-class ChatRoom:
-    def __init__(self, name):
-        self.name = name   # Name of the room
-        self.messages = [] # All messages recieved
-        self.read = 0      # How many of the messages have been read so far
-    
-    def addMessage(self, msg):
-        self.messages.append(msg)
-    
-    def readUnreadMessages(self):
-        unread =  self.messages[self.read:]
-        self.read = len(self.messages)
-        return unread
-
+errorLog = ChatRoom("Server Errors")
+# Repl commandline interface thread
 def userInterface():
-    completer = WordCompleter(['register', 'refresh_rooms',
-         'show_rooms', 'add', 'join', 'leave', 'disconnect',
-          'read', 'send'], ignore_case=True)
+    completer = WordCompleter(['register', 'get_rooms',
+         'show_rooms', 'show_errors', 'add', 'join', 'leave', 'disconnect',
+          'read', 'send', 'get_members', 'show_members'], ignore_case=True)
     
     while 1:
         userInput = prompt('IRC>', history=FileHistory('history.txt'),
@@ -55,10 +60,11 @@ def userInterface():
         # Server specific requests
         if args[0] == "register":
             toSend.append("REGISTER UNIQUE " + args[1])
-        elif args[0] == "refresh_rooms":
+        elif args[0] == "get_rooms":
             toSend.append("LIST ROOMS")
         elif args[0] == "join":
-            toSend.append("JOIN_ROOM " + args[1])
+            for room in args[1].split(','):
+                toSend.append("JOIN_ROOM " + room)
         elif args[0] == "add":
             toSend.append("CREATE_ROOM " + args[1])
         elif args[0] == "leave":
@@ -67,21 +73,48 @@ def userInterface():
             for room in args[1].split(','):
                 toSend.append("SEND_MSG " + room + " " + args[2])
         elif args[0] == "disconnect":
-            #TODO
-            pass
-        
+            toSend.append("DISCONNECT ALL " + " " + args[2])
+        elif args[0] == 'get_members':
+            toSend.append("LIST_ROOM_MEMBERS " + args[1])
+  
         # Opreations that do not require the server
         elif args[0] == "show_rooms":
             for room in chatHistory.keys():
                 print(room)
             continue
-        elif args[0] == "read":
+
+        # Display memembers of a certain chat room.
+        elif args[0] == "show_members":
             room = args[1]
             if room in chatHistory.keys():
-                for msg in chatHistory[room].readUnreadMessages():
+                for msg in chatHistory[room].memmbers:
                     print(msg)
             else:
                 print("Error: Room is not valid")
+            continue
+
+        # Read messages from specfici rooms
+        elif args[0] == "read":
+            room = args[1]
+            if room in chatHistory.keys():
+                if len(args) != 3 or (not args[2] in ["ALL","UNREAD"]):
+                    print("Error: expected third paramters ALL|UNREAD")
+                    continue
+                msgs = []
+                if args[2] == "ALL":
+                    msgs = chatHistory[room].messages
+                else:
+                    msgs = chatHistory[room].readUnreadMessages()
+                for msg in msgs:
+                    print(msg)
+            else:
+                print("Error: Room is not valid")
+            continue
+        
+        # Displays errors recieved by the server
+        elif args[0] == "show_errors":
+            for msg in errorLog.readUnreadMessages():
+                print(msg)
             continue
 
         if toSend == []:
@@ -93,8 +126,13 @@ def userInterface():
 _thread.start_new_thread(userInterface,()) 
 
 # Main thread listens for feedback from the server.
-while True:   
-    data = server.recv(2048)
+while True: 
+    data = None  
+    try:
+        data = server.recv(2048)
+    except Exception as e:
+        print("Server connection error.")
+        sys.exit()
     if data:   
         msg = data.decode('utf-8').split(" ", 2)
         if msg[0] == "REC_MSG":
@@ -108,5 +146,15 @@ while True:
             for room in allRooms:
                 if not room in chatHistory.keys():
                     chatHistory[room] = ChatRoom(room)
+
+        elif msg[0] == "ROOM_MEMBERS":
+            room = msg[1]
+            allRooms = msg[2].split(" ")
+            if not room in chatHistory.keys():
+                chatHistory[room] = ChatRoom(room)
+            chatHistory[room].setMembers(allRooms)
+
+        elif msg[0].startswith("ERR_"):
+            errorLog.addMessage(" ".join(msg))
 
 server.close()  
