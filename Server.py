@@ -3,23 +3,14 @@ import socket
 import sys  
 import _thread
 from datetime import datetime
-import argparse
+from Common import getArgs
 
 
 # Allow for IP and port customization 
-parser = argparse.ArgumentParser(description='IRC like server')
-parser.add_argument('--port', type=int, nargs='?', default=4137,
-                    help='port for the server to listen to.')
-parser.add_argument('--address', nargs='?',  default='localhost',
-                    help='the address for the server to run on.')
-
-cmdArgs = parser.parse_args()
-print("Port: " + cmdArgs.port)
-print("Address: " + cmdArgs.address)
-
+port, address = getArgs()
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-server.bind((cmdArgs.address, cmdArgs.port))  
+server.bind((address, port))
 server.listen(10)
 
 clients = [] 
