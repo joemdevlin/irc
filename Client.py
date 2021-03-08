@@ -2,6 +2,7 @@ import socket
 import sys  
 import _thread
 import time
+import select
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -38,19 +39,17 @@ print(cmdArgs.port)
 print(cmdArgs.address)
 cmdArgs = parser.parse_args()
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-server.connect((cmdArgs.address, cmdArgs.port))  
-
 chatHistory={}
 errorLog = ChatRoom("Server Errors")
+continueFlag = True
 # Repl commandline interface thread
 def userInterface():
+    global continueFlag
     completer = WordCompleter(['register', 'get_rooms',
          'show_rooms', 'show_errors', 'add', 'join', 'leave', 'disconnect',
           'read', 'send', 'get_members', 'show_members', 'exit'], ignore_case=True)
     
-    while 1:
+    while continueFlag:
         userInput = prompt('IRC>', history=FileHistory('history.txt'),
             auto_suggest=AutoSuggestFromHistory(), completer=completer)
 
@@ -63,18 +62,23 @@ def userInterface():
         elif args[0] == "get_rooms":
             toSend.append("LIST ROOMS")
         elif args[0] == "join" and len(args) == 2:
-            rooms = args[1].split(',', -1)
+            rooms = args[1].split(',')
             for room in rooms:
                 toSend.append("JOIN_ROOM " + room)
         elif args[0] == "add" and len(args) == 2:
-            toSend.append("CREATE_ROOM " + args[1])
+            rooms = args[1].split(',')
+            for room in rooms:
+                toSend.append("CREATE_ROOM " + room)
         elif args[0] == "leave" and len(args) == 2:
-            toSend.append("LEAVE_ROOM " + args[1])
+            rooms = args[1].split(',')
+            for room in rooms:
+                toSend.append("LEAVE_ROOM " + room)
         elif args[0] == "send" and len(args) == 3:
-            for room in args[1].split(',', -1):
+            for room in args[1].split(','):
                 toSend.append("SEND_MSG " + room + " " + args[2])
         elif args[0] == "disconnect":
             toSend.append("DISCONNECT ALL")
+            continueFlag = False
         elif args[0] == 'get_members' and len(args) == 2:
             toSend.append("LIST_ROOM_MEMBERS " + args[1])
   
@@ -124,19 +128,28 @@ def userInterface():
         if toSend == []:
             print("ERROR with commmand: " + userInput)
         for msg in toSend:
-            server.send(msg.encode('utf-8'))
+            formatted = msg + '\0'
+            server.sendall(formatted.encode('utf-8'))
 
 # Thrad for handling REPL
 _thread.start_new_thread(userInterface,()) 
 
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+server.connect((cmdArgs.address, cmdArgs.port))  
+server.settimeout(.1)
+
 # Main thread listens for feedback from the server.
-while True: 
+while continueFlag: 
     data = None  
     try:
         data = server.recv(2048)
+    except socket.timeout:
+        continue
     except Exception as e:
         print("Server connection error.")
         sys.exit()
+
     if data:   
         msg = data.decode('utf-8').split(" ", 2)
         if msg[0] == "REC_MSG":
@@ -160,5 +173,6 @@ while True:
 
         elif msg[0].startswith("ERR_"):
             errorLog.addMessage(" ".join(msg))
-
+    else:
+        break
 server.close()  

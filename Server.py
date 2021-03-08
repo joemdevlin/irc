@@ -49,15 +49,20 @@ class Client:
         return str(self.userName) + "\n\t" + ",".join(self.rooms)
   
 # Spawning a serperate thread per conenction to relay the message
-def clientthread(client):  
+def clientthread(client):
+    buffer = ""  
     while True:  
         try:  
-            data = client.conn.recv(2048) 
-            if data: 
-                parseMessage(data.decode('utf-8'), client)
+            data = client.conn.recv(2048) .decode('utf-8')
+            if data:
+                buffer = buffer + data
+                messages = buffer.split('\0')
+                for m in messages[:-1]:
+                    if data: 
+                        parseMessage(m, client)
+                buffer = messages[-1]
             else:  
                 disconnect(client)  
-
         except Exception as e:
             print(e)
             disconnect(client) 
@@ -127,7 +132,7 @@ def parseMessage(message, client):
         if not parts[1] in rooms and not ',' in parts[1]:
             rooms.append(parts[1])
         else:
-            print("Room already created")
+            print("Room already created or invalid syntax")
             msg = "ERR_ROOM EXISTS " + message
             sendMessage(msg.encode('utf-8'), client)
 
@@ -184,7 +189,8 @@ def broadcast(message, room):
 
 def disconnect(c):  
     if c in clients:  
-        clients.remove(c)  
+        clients.remove(c)
+    sys.exit()
 
 if __name__ == '__main__':  
     try:
