@@ -48,7 +48,7 @@ errorLog = ChatRoom("Server Errors")
 def userInterface():
     completer = WordCompleter(['register', 'get_rooms',
          'show_rooms', 'show_errors', 'add', 'join', 'leave', 'disconnect',
-          'read', 'send', 'get_members', 'show_members'], ignore_case=True)
+          'read', 'send', 'get_members', 'show_members', 'exit'], ignore_case=True)
     
     while 1:
         userInput = prompt('IRC>', history=FileHistory('history.txt'),
@@ -58,23 +58,24 @@ def userInterface():
         toSend = [] # Strings to be send to the server.
 
         # Server specific requests
-        if args[0] == "register":
+        if args[0] == "register" and len(args) == 2:
             toSend.append("REGISTER UNIQUE " + args[1])
         elif args[0] == "get_rooms":
             toSend.append("LIST ROOMS")
-        elif args[0] == "join":
-            for room in args[1].split(','):
+        elif args[0] == "join" and len(args) == 2:
+            rooms = args[1].split(',', -1)
+            for room in rooms:
                 toSend.append("JOIN_ROOM " + room)
-        elif args[0] == "add":
+        elif args[0] == "add" and len(args) == 2:
             toSend.append("CREATE_ROOM " + args[1])
-        elif args[0] == "leave":
+        elif args[0] == "leave" and len(args) == 2:
             toSend.append("LEAVE_ROOM " + args[1])
-        elif args[0] == "send":
-            for room in args[1].split(','):
+        elif args[0] == "send" and len(args) == 3:
+            for room in args[1].split(',', -1):
                 toSend.append("SEND_MSG " + room + " " + args[2])
         elif args[0] == "disconnect":
-            toSend.append("DISCONNECT ALL " + " " + args[2])
-        elif args[0] == 'get_members':
+            toSend.append("DISCONNECT ALL")
+        elif args[0] == 'get_members' and len(args) == 2:
             toSend.append("LIST_ROOM_MEMBERS " + args[1])
   
         # Opreations that do not require the server
@@ -116,6 +117,9 @@ def userInterface():
             for msg in errorLog.readUnreadMessages():
                 print(msg)
             continue
+
+        elif args[0] == 'exit':
+            sys.exit()
 
         if toSend == []:
             print("ERROR with commmand: " + userInput)
