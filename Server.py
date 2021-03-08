@@ -14,8 +14,8 @@ parser.add_argument('--address', nargs='?',  default='localhost',
                     help='the address for the server to run on.')
 
 cmdArgs = parser.parse_args()
-print(cmdArgs.port)
-print(cmdArgs.address)
+print("Port: " + cmdArgs.port)
+print("Address: " + cmdArgs.address)
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
@@ -53,7 +53,7 @@ def clientthread(client):
     buffer = ""  
     while True:  
         try:  
-            data = client.conn.recv(2048) .decode('utf-8')
+            data = client.conn.recv(2048).decode('utf-8')
             if data:
                 buffer = buffer + data
                 messages = buffer.split('\0')
@@ -66,7 +66,6 @@ def clientthread(client):
         except Exception as e:
             print(e)
             disconnect(client) 
-            sys.exit()
 
 def parseMessage(message, client):
     # Check high level structure of the message 
@@ -79,13 +78,13 @@ def parseMessage(message, client):
         else:
             print("Bad fromat based on split. Size: " + str(len(parts)))
             msg = "ERR_UNKNOWN FORMAT " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
             return 
 
     # Spec does not define the expcected behavior for sending a different first message.
-    # This server will just choose to not process the request.
+    # This server will choose to disconnect.
     if client.userName == None and parts[0] != "REGISTER":
-        return 
+        disconnect(client)
 
     # Adding a new user.
     elif parts[0] == "REGISTER":
@@ -95,13 +94,13 @@ def parseMessage(message, client):
             else:
                 print("Duplicate name: " + parts[2])
                 msg = "ERR_REGISTER USER_EXISTS " + message
-                sendMessage(msg.encode('utf-8'), client)
+                sendMessage(msg, client)
     
     # Getting all the current chat rooms.
     elif parts[0] == "LIST":
         if parts[1] == "ROOMS":
             response = "ROOMS ALL " + " ".join(rooms)
-            sendMessage(response.encode('utf-8'), client)
+            sendMessage(response, client)
 
     # Getting the members of a room
     elif parts[0] == "LIST_ROOM_MEMBERS":
@@ -111,11 +110,11 @@ def parseMessage(message, client):
                 if parts[1] in client.rooms:
                     members.append(client.userName)
             response = "ROOM_MEMBERS " + parts[1] + " " + " ".join(members)
-            sendMessage(response.encode('utf-8'), client)
+            sendMessage(response, client)
         else:
             print("Unknown chat room name")
             msg = "ERR_ROOM UNKNOWN " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
 
     # Join a new chat room
     elif parts[0] == "JOIN_ROOM":
@@ -124,7 +123,7 @@ def parseMessage(message, client):
         else:
             print("Unknown chat room name")
             msg = "ERR_ROOM UNKNOWN " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
             
 
     # Create a new chat room.
@@ -134,7 +133,7 @@ def parseMessage(message, client):
         else:
             print("Room already created or invalid syntax")
             msg = "ERR_ROOM EXISTS " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
 
     # Exit a room
     elif parts[0] == "LEAVE_ROOM":
@@ -143,64 +142,72 @@ def parseMessage(message, client):
         else:
             print("Room already created")
             msg = "ERR_ROOM UNKNOWN " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
 
     # Send a message to others
     elif parts[0] == "SEND_MSG":
         if client.userName == None:
             print("User not registered.")
             msg = "ERR_UNKNOWN_USER None" + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
         elif parts[1] in rooms and parts[1] in client.rooms:
             message = client.userName + " " + datetime.now().strftime('%H:%M:%S') + " " + parts[2]
             temp = "REC_MSG " + parts[1] + " " + message
-            broadcast(temp.encode('utf-8'), parts[1])
+            broadcast(temp, parts[1])
         else:
             print("Unknown chat room name or not a member of this room")
             msg = "ERR_ROOM NOT_REGISTED " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
 
-    # Disconnect
+    # User would like to disconnect from the server
     elif parts[0] == "DISCONNECT":
         if parts[1] == "ALL":
             disconnect(client)
         else:
             print("Unknown chat room name or not a member of this room")
             msg = "ERR_UNKNOWN ARG " + message
-            sendMessage(msg.encode('utf-8'), client)
+            sendMessage(msg, client)
 
     # Hang on there bud. This is not supported
     else:
         print("Unknown operation")
         msg = "ERR_UNKNOWN OP " + message
-        sendMessage(msg.encode('utf-8'), client)
+        sendMessage(msg, client)
 
+# Send a messsage to an individual client
 def sendMessage(message, client):
     try:  
-        client.conn.send(message)  
-    except socket.error:  
-        client.conn.close()   
+        client.conn.send((message + '\0').encode('utf-8'))  
+    except socket.error:
         disconnect(client)  
  
+# Send a message to a room
 def broadcast(message, room):  
     for client in clients: 
         if room in client.rooms: 
             sendMessage(message, client)
 
+# Terminate communication with a client
 def disconnect(c):  
-    if c in clients:  
+    if c in clients:
+        try:  
+           c.conn.close() 
+        except socket.error:  
+            pass
         clients.remove(c)
     sys.exit()
 
+# Parent thread listens for new connections
 if __name__ == '__main__':  
     try:
         while True:  
             conn, addr = server.accept()  
             clients.append(Client(conn, addr))  
             print (addr[0] + " connected") 
- 
+
+            # Child threads handel each client connection.
             _thread.start_new_thread(clientthread, (clients[-1],)) 
-                    
+
     except KeyboardInterrupt:
         pass
     server.close()  

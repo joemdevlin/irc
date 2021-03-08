@@ -15,13 +15,13 @@ class ChatRoom:
         self.name = name   # Name of the room
         self.messages = [] # All messages recieved
         self.read = 0      # How many of the messages have been read so far
-        self.memmbers = []
+        self.members = []  # Name of the users that are connected to the channel
     
     def addMessage(self, msg):
         self.messages.append(msg)
     
     def setMembers(self, mem):
-        self.memmbers = mem
+        self.members = filter(lambda x: x.strip() != "", mem)
 
     def readUnreadMessages(self):
         unread =  self.messages[self.read:]
@@ -35,13 +35,19 @@ parser.add_argument('--port', type=int, nargs='?', default=4137,
 parser.add_argument('--address', nargs='?',  default='localhost',
                     help='the address for the server to run on.')
 cmdArgs = parser.parse_args()
-print(cmdArgs.port)
-print(cmdArgs.address)
+print("Port: " + cmdArgs.port)
+print("Address: " + cmdArgs.address)
 cmdArgs = parser.parse_args()
 
+# These are updated by the parent listening thread, and then read by the child tread.
+# They contain updates from the server side.
 chatHistory={}
 errorLog = ChatRoom("Server Errors")
-continueFlag = True
+
+# Global flag to decide if the user has tried to terminate the connection. It is set
+# in the child process, and then read in the parent process.
+continueFlag = True 
+
 # Repl commandline interface thread
 def userInterface():
     global continueFlag
@@ -92,7 +98,7 @@ def userInterface():
         elif args[0] == "show_members":
             room = args[1]
             if room in chatHistory.keys():
-                for msg in chatHistory[room].memmbers:
+                for msg in chatHistory[room].members:
                     print(msg)
             else:
                 print("Error: Room is not valid")
@@ -174,5 +180,6 @@ while continueFlag:
         elif msg[0].startswith("ERR_"):
             errorLog.addMessage(" ".join(msg))
     else:
+        print("Disconnected from server.")
         break
 server.close()  
