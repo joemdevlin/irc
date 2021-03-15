@@ -200,9 +200,10 @@ while continueFlag:
                 buffer = messages[-1]
             else:
                 print("Disconnected from server.")
+                continueFlag = False
                 break
         except socket.timeout:
-            continue
+            break
         except socket.error as e:
             print("Server connection error.")
             sys.exit()
